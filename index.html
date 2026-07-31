@@ -3,14 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>A4 Scanner Pro (iOS Compatible)</title>
+    <title>A4 Scanner Pro (iOS Fixed)</title>
+    <!-- Tải thư viện jsPDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         :root {
-            /* Tỷ lệ A4 dọc xấp xỉ 1 : 1.414. Ta lấy 70% chiều rộng màn hình làm chuẩn */
             --a4-width: 70vw;
             --a4-height: calc(var(--a4-width) * 1.414);
-            /* Đảm bảo khung không quá cao trên màn hình ngắn */
             --max-a4-height: 70vh; 
         }
 
@@ -19,39 +18,24 @@
         body, html { 
             margin: 0; padding: 0; width: 100%; height: 100%; 
             overflow: hidden; background: #000; 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
             color: #fff;
         }
         
-        /* 1. Camera Toàn Màn Hình */
-        #camera-container {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 1;
-        }
+        #camera-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        video { width: 100%; height: 100%; object-fit: cover; display: block; transition: filter 0.2s; }
 
-        video { 
-            width: 100%; height: 100%; object-fit: cover; /* Phủ kín */
-            display: block; transition: filter 0.2s;
-        }
-
-        /* 2. Khung A4 cố định dạng Cut-out (Làm tối vùng ngoài) */
         #overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 2; pointer-events: none; /* Cho phép bấm xuyên qua */
+            z-index: 2; pointer-events: none; 
             display: flex; justify-content: center; align-items: center;
-            /* Tạo hiệu ứng cut-out bằng lớp phủ tối và boxShadow trắng */
-            background-color: rgba(0, 0, 0, 0.6); /* Vùng ngoài tối */
+            background-color: rgba(0, 0, 0, 0.6); 
         }
 
         #scan-region {
-            width: var(--a4-width);
-            height: var(--a4-height);
-            max-height: var(--max-a4-height);
-            border: 2px solid #00ff00; /* Viền xanh */
-            border-radius: 4px;
-            background-color: transparent; /* Vùng trong trong suốt */
-            box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.6); /* Mẹo tạo vùng tối xung quanh rộng vô cực */
-            position: relative;
+            width: var(--a4-width); height: var(--a4-height); max-height: var(--max-a4-height);
+            border: 2px solid #00ff00; border-radius: 4px; background-color: transparent; 
+            box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.6); position: relative;
         }
         
         #scan-region::after {
@@ -61,81 +45,45 @@
             transform: translateY(-50%); text-shadow: 0 1px 2px rgba(0,0,0,0.8);
         }
 
-        /* 3. Vùng điều khiển cố định ở góc dưới */
         #controls-container {
-            position: absolute; bottom: 0; left: 0; width: 100%;
-            z-index: 3; /* Nằm trên cùng */
-            background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 70%, transparent 100%);
-            padding: 20px 20px calc(20px + env(safe-area-inset-bottom)); /* Hỗ trợ tai thỏ iPhone */
-            display: flex; flex-direction: column; gap: 15px;
-            align-items: center;
+            position: absolute; bottom: 0; left: 0; width: 100%; z-index: 3; 
+            background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.6) 70%, transparent 100%);
+            padding: 20px 20px calc(20px + env(safe-area-inset-bottom)); 
+            display: flex; flex-direction: column; gap: 15px; align-items: center;
         }
 
-        /* Status & Page count */
         #ui-info { width: 100%; text-align: center; display: flex; flex-direction: column; gap: 2px; }
         #pageCount { font-size: 18px; font-weight: bold; color: #ffd700; }
-        #status { font-size: 13px; color: #bbb; min-height: 1.2em; }
+        #status { font-size: 13px; color: #bbb; min-height: 1.5em; }
 
-        /* Toolbar (B&W button, sliders) */
         .toolbar { width: 100%; display: flex; flex-direction: column; gap: 10px; background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px; }
         .tool-row { display: flex; justify-content: center; width: 100%; }
-        
-        button.tool-btn {
-            padding: 8px 15px; font-size: 13px; font-weight: bold;
-            border: 1px solid #666; border-radius: 20px; cursor: pointer;
-            background: rgba(0,0,0,0.5); color: white; transition: 0.2s;
-        }
+        button.tool-btn { padding: 8px 15px; font-size: 13px; font-weight: bold; border: 1px solid #666; border-radius: 20px; cursor: pointer; background: rgba(0,0,0,0.5); color: white; transition: 0.2s; }
         button.tool-btn.active { background: #007bff; border-color: #007bff; }
 
         .slider-group { display: flex; align-items: center; gap: 10px; width: 100%; color: #ccc; font-size: 12px; }
         .slider-group input[type="range"] { flex: 1; height: 15px; accent-color: #007bff; }
         .slider-label { width: 60px; text-align: right; }
 
-        /* Action Buttons (Snap, Finish) */
         .action-row { display: flex; gap: 15px; width: 100%; max-width: 400px; justify-content: center; }
-        
-        .action-btn { 
-            flex: 1; padding: 16px; font-size: 16px; font-weight: bold;
-            border: none; border-radius: 50px; cursor: pointer;
-            transition: transform 0.1s, background-color 0.2s;
-            display: flex; align-items: center; justify-content: center; gap: 8px;
-        }
-        .action-btn:active { transform: scale(0.96); }
-        
+        .action-btn { flex: 1; padding: 16px; font-size: 16px; font-weight: bold; border: none; border-radius: 50px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
         #snapBtn { background-color: #28a745; color: white; }
-        #finishBtn { background-color: #007bff; color: white; display: none; } /* Ẩn mặc định */
-        
+        #finishBtn { background-color: #007bff; color: white; display: none; } 
         .action-btn:disabled { background-color: #555 !important; color: #aaa; cursor: not-allowed; }
 
         canvas { display: none; }
-        
-        /* Hiển thị trên màn hình ngang (xoay điện thoại) */
-        @media (orientation: landscape) {
-            :root {
-                --a4-height: 80vh;
-                --a4-width: calc(var(--a4-height) / 1.414);
-            }
-            #controls-container {
-                width: 300px; height: 100%; right: 0; left: auto; bottom: 0;
-                background: rgba(0,0,0,0.8);
-                padding: 20px; justify-content: center;
-            }
-        }
     </style>
 </head>
 <body>
 
-    <!-- 1. Camera View -->
     <div id="camera-container">
         <video id="camera" autoplay playsinline muted></video>
     </div>
 
-    <!-- 2. Khung A4 dọc cố định -->
     <div id="overlay">
         <div id="scan-region"></div>
     </div>
 
-    <!-- 3. Vùng điều khiển ở đáy -->
     <div id="controls-container">
         <div id="ui-info">
             <div id="pageCount">Chưa có trang nào</div>
@@ -168,7 +116,7 @@
     <canvas id="canvas"></canvas>
 
     <script>
-        // Url này bạn giữ nguyên như đã config trước đó
+        // THAY URL CỦA GOOGLE APPS SCRIPT VÀO ĐÂY
         const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyu5vqWfpD9usdQbDO62wchJyaAQ7fDj3K2CZ4wqp0vj-uGdT8-Eu5_zVkeNRB9CXq6/exec'; 
 
         const video = document.getElementById('camera');
@@ -176,7 +124,6 @@
         const statusDiv = document.getElementById('status');
         const pageCountDiv = document.getElementById('pageCount');
         
-        // Buttons & Sliders
         const snapBtn = document.getElementById('snapBtn');
         const finishBtn = document.getElementById('finishBtn');
         const bwBtn = document.getElementById('bwBtn');
@@ -189,70 +136,41 @@
         let pageCount = 0;
         let isBwOn = false;
 
-        // --- 1. Khởi động Camera (Tối ưu cho iPhone camera sau) ---
         async function startCamera() {
             statusDiv.innerText = "Đang mở camera...";
             try {
-                // Ràng buộc camera sau chuẩn xác nhất cho mobile
                 const constraints = { 
-                    video: { 
-                        facingMode: { exact: "environment" }, // Bắt buộc camera sau
-                        width: { ideal: 1920 }, 
-                        height: { ideal: 1080 }
-                    },
+                    video: { facingMode: { exact: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
                     audio: false
                 };
-                
                 const stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
                 statusDiv.innerText = "Sẵn sàng quét";
-                
-                // Tránh lỗi Safari iOS cần user tương tác mới play video
-                video.play().catch(e => {
-                    console.log("Auto-play blocked, wait for user interact");
-                    statusDiv.innerText = "Chạm vào màn hình nếu camera không lên";
-                    document.body.addEventListener('click', () => video.play(), {once: true});
-                });
-
+                video.play().catch(e => { statusDiv.innerText = "Chạm vào màn hình để bật camera"; });
             } catch (err) {
-                console.error("Camera Error:", err);
-                // Fallback nếu "{ exact: environment }" quá khắt khe với máy cũ
                 if(err.name === 'OverconstrainedError' || err.name === 'ConstraintNotSatisfiedError') {
-                    statusDiv.innerText = "Đang thử lại với cấu hình camera thấp hơn...";
                     try {
                         const fallbackStream = await navigator.mediaDevices.getUserMedia({video: { facingMode: "environment" }});
                         video.srcObject = fallbackStream;
                         statusDiv.innerText = "Sẵn sàng (Fallback)";
                     } catch(e2) {
-                        statusDiv.innerText = "Không thể mở camera sau: " + e2.message;
+                        statusDiv.innerText = "Lỗi camera: " + e2.message;
                     }
                 } else {
-                    statusDiv.innerText = "Lỗi access camera: " + err.message + ". Vui lòng kiểm tra quyền HTTPS.";
+                    statusDiv.innerText = "Lỗi access camera: " + err.message;
                 }
             }
         }
-        
-        // Khởi động khi load trang
         startCamera();
 
-        // --- 2. Xử lý Bộ Lọc & Cập nhật UI ---
         function getFilterString() {
             return `brightness(${brightnessInput.value}%) contrast(${contrastInput.value}%) ${isBwOn ? 'grayscale(100%)' : ''}`;
         }
 
-        function updateFilters() {
-            video.style.filter = getFilterString();
-        }
+        function updateFilters() { video.style.filter = getFilterString(); }
 
-        brightnessInput.addEventListener('input', (e) => {
-            brightVal.innerText = e.target.value + '%';
-            updateFilters();
-        });
-        
-        contrastInput.addEventListener('input', (e) => {
-            contrastVal.innerText = e.target.value + '%';
-            updateFilters();
-        });
+        brightnessInput.addEventListener('input', (e) => { brightVal.innerText = e.target.value + '%'; updateFilters(); });
+        contrastInput.addEventListener('input', (e) => { contrastVal.innerText = e.target.value + '%'; updateFilters(); });
 
         bwBtn.addEventListener('click', () => {
             isBwOn = !isBwOn;
@@ -261,53 +179,78 @@
             updateFilters();
         });
 
-        // --- 3. Chụp ảnh (Gắn bộ lọc vào file PDF) ---
+        // --- NÂNG CẤP BẮT LỖI Ở HÀM CHỤP ---
         snapBtn.addEventListener('click', () => {
-            if (!video.srcObject) return;
-            
-            // Effect rung nhẹ khi chụp
-            statusDiv.innerText = "Đang chụp...";
-            video.style.opacity = '0.5';
-            setTimeout(() => video.style.opacity = '1', 100);
+            try {
+                // 1. Kiểm tra camera đã load video chưa
+                if (!video.srcObject) {
+                    throw new Error("Camera chưa sẵn sàng.");
+                }
+                
+                // iPhone thi thoảng trả về videoWidth = 0 nếu chưa load xong metadata
+                if (video.videoWidth === 0 || video.videoHeight === 0) {
+                    throw new Error("Khung hình chưa load xong. Thử lại sau 1 giây.");
+                }
 
-            if (pageCount === 0) {
-                const { jsPDF } = window.jspdf;
-                doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-            } else {
-                doc.addPage();
+                statusDiv.innerText = "Đang xử lý...";
+                video.style.opacity = '0.5';
+                setTimeout(() => video.style.opacity = '1', 100);
+
+                // 2. Khởi tạo jsPDF (Bắt lỗi nếu thư viện lỗi mạng chưa tải về)
+                if (pageCount === 0) {
+                    if (!window.jspdf || !window.jspdf.jsPDF) {
+                        throw new Error("Thư viện PDF chưa tải xong. Xin hãy f5/tải lại trang web.");
+                    }
+                    doc = new window.jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                } else {
+                    doc.addPage();
+                }
+
+                // 3. Vẽ lên canvas
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                
+                // Tránh lỗi Safari cũ không support ctx.filter
+                try {
+                    ctx.filter = getFilterString(); 
+                } catch(filterError) {
+                    console.warn("Safari này không hỗ trợ filter canvas");
+                }
+                
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                // 4. Xuất ảnh
+                const imgData = canvas.toDataURL('image/jpeg', 0.85);
+                if (!imgData || imgData === 'data:,') {
+                    throw new Error("Không thể trích xuất ảnh từ Canvas.");
+                }
+                
+                // 5. Đưa vào PDF
+                doc.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+
+                // 6. Hoàn thành
+                pageCount++;
+                pageCountDiv.innerText = `Đã chụp: ${pageCount} trang`;
+                snapBtn.innerText = `📸 Chụp Trang ${pageCount + 1}`;
+                statusDiv.innerHTML = "<span style='color: #00ff00;'>Đã thêm 1 trang thành công!</span>";
+                
+                finishBtn.style.display = 'flex';
+
+            } catch (error) {
+                // Nếu có lỗi, in ra màn hình bằng chữ màu đỏ
+                statusDiv.innerHTML = `<span style='color: #ff4444; font-weight: bold;'>LỖI: ${error.message}</span>`;
+                console.error("Snap Error:", error);
             }
-
-            // Chụp toàn bộ frame video
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            const ctx = canvas.getContext('2d');
-            
-            // Áp dụng bộ lọc vĩnh viễn vào canvas
-            ctx.filter = getFilterString(); 
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            // Xuất ảnh chất lượng cao
-            const imgData = canvas.toDataURL('image/jpeg', 0.85);
-            
-            // Kéo giãn ảnh full trang A4 (210x297mm)
-            doc.addImage(imgData, 'JPEG', 0, 0, 210, 297);
-
-            pageCount++;
-            pageCountDiv.innerText = `Đã chụp: ${pageCount} trang`;
-            snapBtn.innerText = `📸 Chụp Trang ${pageCount + 1}`;
-            statusDiv.innerText = " Đã thêm 1 trang.";
-            
-            finishBtn.style.display = 'flex'; // Hiện nút Lưu
         });
 
-        // --- 4. Gửi lên Google Drive & Sheet ---
+        // --- Hàm Lưu Drive ---
         finishBtn.addEventListener('click', async () => {
             if (pageCount === 0 || !doc) return;
 
             snapBtn.disabled = true; finishBtn.disabled = true;
-            statusDiv.innerHTML = "⏳ Đang tạo PDF & tải lên Drive...<br>Vui lòng đợi, có thể mất vài phút.";
+            statusDiv.innerHTML = "⏳ Đang tạo PDF & tải lên Drive...<br>Vui lòng đợi...";
 
-            // Đặt tên tự động theo giờ VN
             const now = new Date();
             const timestamp = now.getFullYear() +
                 (now.getMonth() + 1).toString().padStart(2, '0') +
@@ -316,11 +259,9 @@
                 now.getMinutes().toString().padStart(2, '0');
             const fileName = `Scan_A4_${timestamp}.pdf`;
 
-            // Lấy base64
             const pdfBase64 = doc.output('datauristring');
 
             try {
-                // Gọi API
                 const response = await fetch(GAS_WEB_APP_URL, {
                     method: 'POST',
                     body: JSON.stringify({ fileName: fileName, base64: pdfBase64 }),
@@ -331,19 +272,18 @@
                 
                 if (result.status === 'success') {
                     statusDiv.innerHTML = `✅ Thành công! <a href="${result.fileUrl}" target="_blank" style="color:#00ff00; font-weight:bold;">[MỞ FILE]</a>`;
-                    // Reset
                     pageCount = 0; doc = null;
                     pageCountDiv.innerText = "Sẵn sàng quét đợt mới";
                     snapBtn.innerText = "📸 Chụp Trang 1";
                     finishBtn.style.display = 'none';
                 } else {
                     statusDiv.innerHTML = "❌ Lỗi server: " + result.message;
-                    snapBtn.disabled = false; finishBtn.disabled = false;
                 }
             } catch (error) {
-                statusDiv.innerHTML = "❌ Lỗi mạng (kiểm tra CORS/URL): " + error.message;
-                snapBtn.disabled = false; finishBtn.disabled = false;
+                statusDiv.innerHTML = "❌ Lỗi mạng: " + error.message;
             }
+            
+            snapBtn.disabled = false; finishBtn.disabled = false;
         });
     </script>
 </body>
