@@ -3,14 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>A4 Scanner Pro (Auto Crop Fixed)</title>
+    <title>A4 Scanner Pro</title>
     <!-- Tải thư viện jsPDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         :root {
-            --a4-width: 70vw;
+            /* Tăng kích thước khung xanh lên 85% chiều ngang màn hình */
+            --a4-width: 85vw;
             --a4-height: calc(var(--a4-width) * 1.414);
-            --max-a4-height: 70vh; 
+            --max-a4-height: 68vh; 
         }
 
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -36,6 +37,8 @@
             width: var(--a4-width); height: var(--a4-height); max-height: var(--max-a4-height);
             border: 2px solid #00ff00; border-radius: 4px; background-color: transparent; 
             box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.6); position: relative;
+            /* Đẩy khung xanh lên trên để không đè vào thanh công cụ bên dưới */
+            margin-top: -12vh;
         }
         
         #scan-region::after {
@@ -45,9 +48,24 @@
             transform: translateY(-50%); text-shadow: 0 1px 2px rgba(0,0,0,0.8);
         }
 
+        /* --- NÚT TRẮNG ĐEN HÌNH TRÒN GÓC TRÊN PHẢI --- */
+        #bwBtn {
+            position: absolute; 
+            top: max(20px, env(safe-area-inset-top)); 
+            right: 20px; 
+            width: 50px; height: 50px; 
+            border-radius: 50%; 
+            background: rgba(0,0,0,0.6); border: 2px solid #888; 
+            color: white; font-size: 22px; 
+            display: flex; justify-content: center; align-items: center;
+            z-index: 10; cursor: pointer; transition: 0.2s;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+        #bwBtn.active { background: #007bff; border-color: #007bff; box-shadow: 0 0 10px #007bff; }
+
         #controls-container {
             position: absolute; bottom: 0; left: 0; width: 100%; z-index: 3; 
-            background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.6) 70%, transparent 100%);
+            background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 60%, transparent 100%);
             padding: 20px 20px calc(20px + env(safe-area-inset-bottom)); 
             display: flex; flex-direction: column; gap: 15px; align-items: center;
         }
@@ -56,20 +74,17 @@
         #pageCount { font-size: 18px; font-weight: bold; color: #ffd700; }
         #status { font-size: 13px; color: #bbb; min-height: 1.5em; }
 
-        .toolbar { width: 100%; display: flex; flex-direction: column; gap: 10px; background: rgba(255,255,255,0.1); padding: 10px; border-radius: 8px; }
-        .tool-row { display: flex; justify-content: center; width: 100%; }
-        button.tool-btn { padding: 8px 15px; font-size: 13px; font-weight: bold; border: 1px solid #666; border-radius: 20px; cursor: pointer; background: rgba(0,0,0,0.5); color: white; transition: 0.2s; }
-        button.tool-btn.active { background: #007bff; border-color: #007bff; }
+        .toolbar { width: 100%; display: flex; flex-direction: column; gap: 10px; background: rgba(255,255,255,0.1); padding: 15px; border-radius: 12px; }
 
-        .slider-group { display: flex; align-items: center; gap: 10px; width: 100%; color: #ccc; font-size: 12px; }
+        .slider-group { display: flex; align-items: center; gap: 10px; width: 100%; color: #eee; font-size: 13px; font-weight: 500; }
         .slider-group input[type="range"] { flex: 1; height: 15px; accent-color: #007bff; }
-        .slider-label { width: 60px; text-align: right; }
+        .slider-label { width: 45px; text-align: right; }
 
-        .action-row { display: flex; gap: 15px; width: 100%; max-width: 400px; justify-content: center; }
-        .action-btn { flex: 1; padding: 16px; font-size: 16px; font-weight: bold; border: none; border-radius: 50px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .action-row { display: flex; gap: 15px; width: 100%; max-width: 400px; justify-content: center; margin-top: 5px; }
+        .action-btn { flex: 1; padding: 16px; font-size: 16px; font-weight: bold; border: none; border-radius: 50px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
         #snapBtn { background-color: #28a745; color: white; }
         #finishBtn { background-color: #007bff; color: white; display: none; } 
-        .action-btn:disabled { background-color: #555 !important; color: #aaa; cursor: not-allowed; }
+        .action-btn:disabled { background-color: #555 !important; color: #aaa; cursor: not-allowed; box-shadow: none; }
 
         canvas { display: none; }
     </style>
@@ -84,6 +99,9 @@
         <div id="scan-region"></div>
     </div>
 
+    <!-- Nút Trắng/Đen đã được dời lên đây -->
+    <button id="bwBtn" title="Chuyển chế độ Trắng/Đen">🌗</button>
+
     <div id="controls-container">
         <div id="ui-info">
             <div id="pageCount">Chưa có trang nào</div>
@@ -91,17 +109,13 @@
         </div>
 
         <div class="toolbar">
-            <div class="tool-row">
-                <button id="bwBtn" class="tool-btn">🌗 Trắng Đen: Tắt</button>
-            </div>
-            
             <div class="slider-group">
-                <span>Sáng</span>
+                <span>☀️ Sáng</span>
                 <input type="range" id="brightness" min="50" max="180" value="100">
                 <span class="slider-label" id="brightVal">100%</span>
             </div>
             <div class="slider-group">
-                <span>Tương Phản</span>
+                <span>🌓 Tương Phản</span>
                 <input type="range" id="contrast" min="50" max="250" value="100">
                 <span class="slider-label" id="contrastVal">100%</span>
             </div>
@@ -123,7 +137,7 @@
         const canvas = document.getElementById('canvas');
         const statusDiv = document.getElementById('status');
         const pageCountDiv = document.getElementById('pageCount');
-        const scanRegion = document.getElementById('scan-region'); // Lấy element khung xanh
+        const scanRegion = document.getElementById('scan-region');
         
         const snapBtn = document.getElementById('snapBtn');
         const finishBtn = document.getElementById('finishBtn');
@@ -176,11 +190,10 @@
         bwBtn.addEventListener('click', () => {
             isBwOn = !isBwOn;
             bwBtn.classList.toggle('active', isBwOn);
-            bwBtn.innerText = isBwOn ? "🌗 Trắng Đen: Bật" : "🌗 Trắng Đen: Tắt";
+            // Chỉ cần đổi class active để nút sáng màu xanh lên, giữ nguyên icon
             updateFilters();
         });
 
-        // --- CẬP NHẬT: THUẬT TOÁN CẮT ẢNH THEO KHUNG XANH ---
         snapBtn.addEventListener('click', () => {
             try {
                 if (!video.srcObject) throw new Error("Camera chưa sẵn sàng.");
@@ -197,47 +210,32 @@
                     doc.addPage();
                 }
 
-                // --- TOÁN HỌC CẮT KHUNG (CROP) ---
-                // 1. Lấy kích thước thực của camera
                 const vw = video.videoWidth;
                 const vh = video.videoHeight;
-                
-                // 2. Lấy kích thước hiển thị trên màn hình CSS
                 const cw = video.clientWidth;
                 const ch = video.clientHeight;
-                
-                // 3. Tính tỷ lệ Zoom do CSS object-fit: cover gây ra
                 const scale = Math.max(cw / vw, ch / vh);
                 
-                // 4. Tính phần rìa bị che khuất ngoài màn hình (nếu có)
                 const offsetX = (vw * scale - cw) / 2;
                 const offsetY = (vh * scale - ch) / 2;
                 
-                // 5. Lấy tọa độ của khung Xanh (Green Box) trên màn hình
                 const rect = scanRegion.getBoundingClientRect();
                 
-                // 6. Tính tọa độ Crop thực tế trên độ phân giải Gốc
                 const sx = (rect.left + offsetX) / scale;
                 const sy = (rect.top + offsetY) / scale;
                 const sw = rect.width / scale;
                 const sh = rect.height / scale;
 
-                // --- VẼ LÊN CANVAS ---
-                // Chỉ set Canvas đúng bằng kích thước vùng cắt (tiết kiệm ram, file nhẹ hơn)
                 canvas.width = sw;
                 canvas.height = sh;
                 const ctx = canvas.getContext('2d');
                 
                 try { ctx.filter = getFilterString(); } catch(e) {}
-                
-                // Lệnh Crop: Lấy nguồn video, từ tọa độ sx, sy... vẽ lên tọa độ 0,0 của canvas
                 ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
 
-                // Trích xuất thành ảnh JPEG (0.85 = chất lượng 85%)
                 const imgData = canvas.toDataURL('image/jpeg', 0.85);
                 if (!imgData || imgData === 'data:,') throw new Error("Lỗi trích xuất ảnh.");
                 
-                // Kéo dãn ảnh vừa cắt ra toàn trang A4 (210 x 297 mm)
                 doc.addImage(imgData, 'JPEG', 0, 0, 210, 297);
 
                 pageCount++;
@@ -251,7 +249,6 @@
             }
         });
 
-        // --- Hàm Lưu Drive ---
         finishBtn.addEventListener('click', async () => {
             if (pageCount === 0 || !doc) return;
 
