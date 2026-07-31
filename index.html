@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>A4 Scanner Pro</title>
+    <title>A4 Scanner Pro (High Quality)</title>
     <!-- Tải thư viện jsPDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         :root {
-            /* Tăng kích thước khung xanh lên 85% chiều ngang màn hình */
             --a4-width: 85vw;
             --a4-height: calc(var(--a4-width) * 1.414);
             --max-a4-height: 68vh; 
@@ -37,7 +36,6 @@
             width: var(--a4-width); height: var(--a4-height); max-height: var(--max-a4-height);
             border: 2px solid #00ff00; border-radius: 4px; background-color: transparent; 
             box-shadow: 0 0 0 1000px rgba(0, 0, 0, 0.6); position: relative;
-            /* Đẩy khung xanh lên trên để không đè vào thanh công cụ bên dưới */
             margin-top: -12vh;
         }
         
@@ -48,13 +46,9 @@
             transform: translateY(-50%); text-shadow: 0 1px 2px rgba(0,0,0,0.8);
         }
 
-        /* --- NÚT TRẮNG ĐEN HÌNH TRÒN GÓC TRÊN PHẢI --- */
         #bwBtn {
-            position: absolute; 
-            top: max(20px, env(safe-area-inset-top)); 
-            right: 20px; 
-            width: 50px; height: 50px; 
-            border-radius: 50%; 
+            position: absolute; top: max(20px, env(safe-area-inset-top)); right: 20px; 
+            width: 50px; height: 50px; border-radius: 50%; 
             background: rgba(0,0,0,0.6); border: 2px solid #888; 
             color: white; font-size: 22px; 
             display: flex; justify-content: center; align-items: center;
@@ -65,26 +59,36 @@
 
         #controls-container {
             position: absolute; bottom: 0; left: 0; width: 100%; z-index: 3; 
-            background: linear-gradient(to top, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 60%, transparent 100%);
-            padding: 20px 20px calc(20px + env(safe-area-inset-bottom)); 
-            display: flex; flex-direction: column; gap: 15px; align-items: center;
+            background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.8) 70%, transparent 100%);
+            padding: 15px 20px calc(15px + env(safe-area-inset-bottom)); 
+            display: flex; flex-direction: column; gap: 12px; align-items: center;
         }
 
         #ui-info { width: 100%; text-align: center; display: flex; flex-direction: column; gap: 2px; }
         #pageCount { font-size: 18px; font-weight: bold; color: #ffd700; }
         #status { font-size: 13px; color: #bbb; min-height: 1.5em; }
 
-        .toolbar { width: 100%; display: flex; flex-direction: column; gap: 10px; background: rgba(255,255,255,0.1); padding: 15px; border-radius: 12px; }
-
+        .toolbar { width: 100%; display: flex; flex-direction: column; gap: 8px; background: rgba(255,255,255,0.1); padding: 12px; border-radius: 12px; }
         .slider-group { display: flex; align-items: center; gap: 10px; width: 100%; color: #eee; font-size: 13px; font-weight: 500; }
         .slider-group input[type="range"] { flex: 1; height: 15px; accent-color: #007bff; }
         .slider-label { width: 45px; text-align: right; }
 
-        .action-row { display: flex; gap: 15px; width: 100%; max-width: 400px; justify-content: center; margin-top: 5px; }
-        .action-btn { flex: 1; padding: 16px; font-size: 16px; font-weight: bold; border: none; border-radius: 50px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .filename-group { width: 100%; max-width: 400px; display: flex; gap: 8px; align-items: center; }
+        #fileNameInput {
+            flex: 1; padding: 10px 15px; border-radius: 8px; border: 1px solid #555;
+            background: rgba(0,0,0,0.6); color: white; font-size: 14px; outline: none;
+            text-align: center; font-family: monospace;
+        }
+        #fileNameInput:focus { border-color: #007bff; background: rgba(0,0,0,0.8); }
+
+        .action-row { display: flex; gap: 15px; width: 100%; max-width: 400px; justify-content: center; }
+        .action-btn { flex: 1; padding: 15px; font-size: 15px; font-weight: bold; border: none; border-radius: 50px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: 0.2s; }
+        
+        /* Đã đổi vị trí: Lưu Drive (Trái), Chụp (Phải) */
+        #finishBtn { background-color: #007bff; color: white; opacity: 0.4; pointer-events: none; } 
         #snapBtn { background-color: #28a745; color: white; }
-        #finishBtn { background-color: #007bff; color: white; display: none; } 
-        .action-btn:disabled { background-color: #555 !important; color: #aaa; cursor: not-allowed; box-shadow: none; }
+        
+        .action-btn:active { transform: scale(0.95); }
 
         canvas { display: none; }
     </style>
@@ -99,7 +103,6 @@
         <div id="scan-region"></div>
     </div>
 
-    <!-- Nút Trắng/Đen đã được dời lên đây -->
     <button id="bwBtn" title="Chuyển chế độ Trắng/Đen">🌗</button>
 
     <div id="controls-container">
@@ -121,9 +124,13 @@
             </div>
         </div>
 
+        <div class="filename-group">
+            <input type="text" id="fileNameInput" placeholder="Nhập tên file PDF...">
+        </div>
+
         <div class="action-row">
-            <button id="snapBtn" class="action-btn">📸 Chụp Trang 1</button>
             <button id="finishBtn" class="action-btn">🚀 Lưu Drive</button>
+            <button id="snapBtn" class="action-btn">📸 Chụp Trang 1</button>
         </div>
     </div>
 
@@ -146,16 +153,40 @@
         const contrastInput = document.getElementById('contrast');
         const brightVal = document.getElementById('brightVal');
         const contrastVal = document.getElementById('contrastVal');
+        const fileNameInput = document.getElementById('fileNameInput');
 
         let doc = null;
         let pageCount = 0;
         let isBwOn = false;
 
+        // Hàm tạo tên file tự động
+        function generateDefaultName() {
+            const now = new Date();
+            return `Scan_A4_${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2,'0')}${now.getDate().toString().padStart(2,'0')}_${now.getHours().toString().padStart(2,'0')}${now.getMinutes().toString().padStart(2,'0')}`;
+        }
+        fileNameInput.value = generateDefaultName();
+
+        // Cập nhật giao diện nút
+        function updateUI() {
+            if (pageCount === 0) {
+                finishBtn.style.opacity = '0.4';
+                finishBtn.style.pointerEvents = 'none';
+                snapBtn.innerText = "📸 Chụp Trang 1";
+                pageCountDiv.innerText = "Chưa có trang nào";
+            } else {
+                finishBtn.style.opacity = '1';
+                finishBtn.style.pointerEvents = 'auto';
+                snapBtn.innerText = `📸 Chụp Trang ${pageCount + 1}`;
+                pageCountDiv.innerText = `Đã chụp: ${pageCount} trang`;
+            }
+        }
+
         async function startCamera() {
-            statusDiv.innerText = "Đang mở camera...";
+            statusDiv.innerText = "Đang mở camera độ phân giải cao...";
             try {
+                // Yêu cầu camera 4K để tăng tối đa độ sắc nét, nếu không có sẽ tự lùi về độ phân giải thấp hơn
                 const constraints = { 
-                    video: { facingMode: { exact: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+                    video: { facingMode: { exact: "environment" }, width: { ideal: 3840 }, height: { ideal: 2160 } },
                     audio: false
                 };
                 const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -163,26 +194,21 @@
                 statusDiv.innerText = "Sẵn sàng quét";
                 video.play().catch(e => { statusDiv.innerText = "Chạm vào màn hình để bật camera"; });
             } catch (err) {
-                if(err.name === 'OverconstrainedError' || err.name === 'ConstraintNotSatisfiedError') {
-                    try {
-                        const fallbackStream = await navigator.mediaDevices.getUserMedia({video: { facingMode: "environment" }});
-                        video.srcObject = fallbackStream;
-                        statusDiv.innerText = "Sẵn sàng (Fallback)";
-                    } catch(e2) {
-                        statusDiv.innerText = "Lỗi camera: " + e2.message;
-                    }
-                } else {
-                    statusDiv.innerText = "Lỗi access camera: " + err.message;
+                try {
+                    const fallbackStream = await navigator.mediaDevices.getUserMedia({video: { facingMode: "environment" }});
+                    video.srcObject = fallbackStream;
+                    statusDiv.innerText = "Sẵn sàng (Camera tiêu chuẩn)";
+                } catch(e2) {
+                    statusDiv.innerText = "Lỗi camera: " + e2.message;
                 }
             }
         }
         startCamera();
 
-        function getFilterString() {
-            return `brightness(${brightnessInput.value}%) contrast(${contrastInput.value}%) ${isBwOn ? 'grayscale(100%)' : ''}`;
+        // Cập nhật CSS filter cho Preview trên màn hình
+        function updateFilters() { 
+            video.style.filter = `brightness(${brightnessInput.value}%) contrast(${contrastInput.value}%) ${isBwOn ? 'grayscale(100%)' : ''}`;
         }
-
-        function updateFilters() { video.style.filter = getFilterString(); }
 
         brightnessInput.addEventListener('input', (e) => { brightVal.innerText = e.target.value + '%'; updateFilters(); });
         contrastInput.addEventListener('input', (e) => { contrastVal.innerText = e.target.value + '%'; updateFilters(); });
@@ -190,7 +216,6 @@
         bwBtn.addEventListener('click', () => {
             isBwOn = !isBwOn;
             bwBtn.classList.toggle('active', isBwOn);
-            // Chỉ cần đổi class active để nút sáng màu xanh lên, giữ nguyên icon
             updateFilters();
         });
 
@@ -199,7 +224,7 @@
                 if (!video.srcObject) throw new Error("Camera chưa sẵn sàng.");
                 if (video.videoWidth === 0 || video.videoHeight === 0) throw new Error("Khung hình chưa load xong.");
 
-                statusDiv.innerText = "Đang xử lý...";
+                statusDiv.innerText = "Đang xử lý ảnh...";
                 video.style.opacity = '0.5';
                 setTimeout(() => video.style.opacity = '1', 100);
 
@@ -210,6 +235,7 @@
                     doc.addPage();
                 }
 
+                // Tính toán tọa độ cắt
                 const vw = video.videoWidth;
                 const vh = video.videoHeight;
                 const cw = video.clientWidth;
@@ -218,7 +244,6 @@
                 
                 const offsetX = (vw * scale - cw) / 2;
                 const offsetY = (vh * scale - ch) / 2;
-                
                 const rect = scanRegion.getBoundingClientRect();
                 
                 const sx = (rect.left + offsetX) / scale;
@@ -230,19 +255,47 @@
                 canvas.height = sh;
                 const ctx = canvas.getContext('2d');
                 
-                try { ctx.filter = getFilterString(); } catch(e) {}
+                // Vẽ ảnh gốc lên Canvas
                 ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
 
-                const imgData = canvas.toDataURL('image/jpeg', 0.85);
+                // --- XỬ LÝ PIXEL CẤP THẤP: ÉP BUỘC TRẮNG ĐEN & ĐỘ SÁNG TRÊN MỌI TRÌNH DUYỆT ---
+                const imgDataObj = ctx.getImageData(0, 0, sw, sh);
+                const data = imgDataObj.data;
+                const b = parseInt(brightnessInput.value) / 100; 
+                const c = parseInt(contrastInput.value) / 100; 
+                const intercept = 128 * (1 - c);
+
+                for (let i = 0; i < data.length; i += 4) {
+                    let r = data[i], g = data[i+1], bl = data[i+2];
+                    
+                    // Áp dụng độ sáng
+                    r *= b; g *= b; bl *= b;
+                    
+                    // Áp dụng tương phản
+                    r = r * c + intercept;
+                    g = g * c + intercept;
+                    bl = bl * c + intercept;
+                    
+                    // Áp dụng Trắng/Đen (Grayscale)
+                    if (isBwOn) {
+                        const gray = r * 0.299 + g * 0.587 + bl * 0.114;
+                        r = g = bl = gray;
+                    }
+                    
+                    data[i] = r; data[i+1] = g; data[i+2] = bl;
+                }
+                // Ghi đè pixel đã xử lý lại lên canvas
+                ctx.putImageData(imgDataObj, 0, 0);
+
+                // Trích xuất ảnh chất lượng khá (0.92) để nét hơn
+                const imgData = canvas.toDataURL('image/jpeg', 0.92);
                 if (!imgData || imgData === 'data:,') throw new Error("Lỗi trích xuất ảnh.");
                 
                 doc.addImage(imgData, 'JPEG', 0, 0, 210, 297);
 
                 pageCount++;
-                pageCountDiv.innerText = `Đã chụp: ${pageCount} trang`;
-                snapBtn.innerText = `📸 Chụp Trang ${pageCount + 1}`;
-                statusDiv.innerHTML = "<span style='color: #00ff00;'>Đã thêm 1 trang!</span>";
-                finishBtn.style.display = 'flex';
+                updateUI();
+                statusDiv.innerHTML = "<span style='color: #00ff00;'>Đã chụp & tối ưu sắc nét!</span>";
 
             } catch (error) {
                 statusDiv.innerHTML = `<span style='color: #ff4444; font-weight: bold;'>LỖI: ${error.message}</span>`;
@@ -252,23 +305,20 @@
         finishBtn.addEventListener('click', async () => {
             if (pageCount === 0 || !doc) return;
 
-            snapBtn.disabled = true; finishBtn.disabled = true;
+            snapBtn.style.pointerEvents = 'none'; finishBtn.style.pointerEvents = 'none';
             statusDiv.innerHTML = "⏳ Đang tạo PDF & tải lên Drive...<br>Vui lòng đợi...";
 
-            const now = new Date();
-            const timestamp = now.getFullYear() +
-                (now.getMonth() + 1).toString().padStart(2, '0') +
-                now.getDate().toString().padStart(2, '0') + "_" +
-                now.getHours().toString().padStart(2, '0') +
-                now.getMinutes().toString().padStart(2, '0');
-            const fileName = `Scan_A4_${timestamp}.pdf`;
+            // Xử lý tên file tùy chỉnh
+            let finalFileName = fileNameInput.value.trim();
+            if (!finalFileName) finalFileName = generateDefaultName();
+            if (!finalFileName.toLowerCase().endsWith('.pdf')) finalFileName += '.pdf';
 
             const pdfBase64 = doc.output('datauristring');
 
             try {
                 const response = await fetch(GAS_WEB_APP_URL, {
                     method: 'POST',
-                    body: JSON.stringify({ fileName: fileName, base64: pdfBase64 }),
+                    body: JSON.stringify({ fileName: finalFileName, base64: pdfBase64 }),
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' } 
                 });
 
@@ -277,9 +327,8 @@
                 if (result.status === 'success') {
                     statusDiv.innerHTML = `✅ Thành công! <a href="${result.fileUrl}" target="_blank" style="color:#00ff00; font-weight:bold;">[MỞ FILE]</a>`;
                     pageCount = 0; doc = null;
-                    pageCountDiv.innerText = "Sẵn sàng quét đợt mới";
-                    snapBtn.innerText = "📸 Chụp Trang 1";
-                    finishBtn.style.display = 'none';
+                    fileNameInput.value = generateDefaultName(); // Reset tên file mới
+                    updateUI();
                 } else {
                     statusDiv.innerHTML = "❌ Lỗi server: " + result.message;
                 }
@@ -287,7 +336,8 @@
                 statusDiv.innerHTML = "❌ Lỗi mạng: " + error.message;
             }
             
-            snapBtn.disabled = false; finishBtn.disabled = false;
+            snapBtn.style.pointerEvents = 'auto'; 
+            if(pageCount > 0) finishBtn.style.pointerEvents = 'auto';
         });
     </script>
 </body>
