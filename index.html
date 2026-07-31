@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>A4 Scanner Pro (iOS Fixed)</title>
+    <title>A4 Scanner Pro (Auto Crop Fixed)</title>
     <!-- Tải thư viện jsPDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
@@ -123,6 +123,7 @@
         const canvas = document.getElementById('canvas');
         const statusDiv = document.getElementById('status');
         const pageCountDiv = document.getElementById('pageCount');
+        const scanRegion = document.getElementById('scan-region'); // Lấy element khung xanh
         
         const snapBtn = document.getElementById('snapBtn');
         const finishBtn = document.getElementById('finishBtn');
@@ -179,68 +180,74 @@
             updateFilters();
         });
 
-        // --- NÂNG CẤP BẮT LỖI Ở HÀM CHỤP ---
+        // --- CẬP NHẬT: THUẬT TOÁN CẮT ẢNH THEO KHUNG XANH ---
         snapBtn.addEventListener('click', () => {
             try {
-                // 1. Kiểm tra camera đã load video chưa
-                if (!video.srcObject) {
-                    throw new Error("Camera chưa sẵn sàng.");
-                }
-                
-                // iPhone thi thoảng trả về videoWidth = 0 nếu chưa load xong metadata
-                if (video.videoWidth === 0 || video.videoHeight === 0) {
-                    throw new Error("Khung hình chưa load xong. Thử lại sau 1 giây.");
-                }
+                if (!video.srcObject) throw new Error("Camera chưa sẵn sàng.");
+                if (video.videoWidth === 0 || video.videoHeight === 0) throw new Error("Khung hình chưa load xong.");
 
                 statusDiv.innerText = "Đang xử lý...";
                 video.style.opacity = '0.5';
                 setTimeout(() => video.style.opacity = '1', 100);
 
-                // 2. Khởi tạo jsPDF (Bắt lỗi nếu thư viện lỗi mạng chưa tải về)
                 if (pageCount === 0) {
-                    if (!window.jspdf || !window.jspdf.jsPDF) {
-                        throw new Error("Thư viện PDF chưa tải xong. Xin hãy f5/tải lại trang web.");
-                    }
+                    if (!window.jspdf || !window.jspdf.jsPDF) throw new Error("Lỗi tải PDF library.");
                     doc = new window.jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
                 } else {
                     doc.addPage();
                 }
 
-                // 3. Vẽ lên canvas
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
+                // --- TOÁN HỌC CẮT KHUNG (CROP) ---
+                // 1. Lấy kích thước thực của camera
+                const vw = video.videoWidth;
+                const vh = video.videoHeight;
+                
+                // 2. Lấy kích thước hiển thị trên màn hình CSS
+                const cw = video.clientWidth;
+                const ch = video.clientHeight;
+                
+                // 3. Tính tỷ lệ Zoom do CSS object-fit: cover gây ra
+                const scale = Math.max(cw / vw, ch / vh);
+                
+                // 4. Tính phần rìa bị che khuất ngoài màn hình (nếu có)
+                const offsetX = (vw * scale - cw) / 2;
+                const offsetY = (vh * scale - ch) / 2;
+                
+                // 5. Lấy tọa độ của khung Xanh (Green Box) trên màn hình
+                const rect = scanRegion.getBoundingClientRect();
+                
+                // 6. Tính tọa độ Crop thực tế trên độ phân giải Gốc
+                const sx = (rect.left + offsetX) / scale;
+                const sy = (rect.top + offsetY) / scale;
+                const sw = rect.width / scale;
+                const sh = rect.height / scale;
+
+                // --- VẼ LÊN CANVAS ---
+                // Chỉ set Canvas đúng bằng kích thước vùng cắt (tiết kiệm ram, file nhẹ hơn)
+                canvas.width = sw;
+                canvas.height = sh;
                 const ctx = canvas.getContext('2d');
                 
-                // Tránh lỗi Safari cũ không support ctx.filter
-                try {
-                    ctx.filter = getFilterString(); 
-                } catch(filterError) {
-                    console.warn("Safari này không hỗ trợ filter canvas");
-                }
+                try { ctx.filter = getFilterString(); } catch(e) {}
                 
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                // Lệnh Crop: Lấy nguồn video, từ tọa độ sx, sy... vẽ lên tọa độ 0,0 của canvas
+                ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
 
-                // 4. Xuất ảnh
+                // Trích xuất thành ảnh JPEG (0.85 = chất lượng 85%)
                 const imgData = canvas.toDataURL('image/jpeg', 0.85);
-                if (!imgData || imgData === 'data:,') {
-                    throw new Error("Không thể trích xuất ảnh từ Canvas.");
-                }
+                if (!imgData || imgData === 'data:,') throw new Error("Lỗi trích xuất ảnh.");
                 
-                // 5. Đưa vào PDF
+                // Kéo dãn ảnh vừa cắt ra toàn trang A4 (210 x 297 mm)
                 doc.addImage(imgData, 'JPEG', 0, 0, 210, 297);
 
-                // 6. Hoàn thành
                 pageCount++;
                 pageCountDiv.innerText = `Đã chụp: ${pageCount} trang`;
                 snapBtn.innerText = `📸 Chụp Trang ${pageCount + 1}`;
-                statusDiv.innerHTML = "<span style='color: #00ff00;'>Đã thêm 1 trang thành công!</span>";
-                
+                statusDiv.innerHTML = "<span style='color: #00ff00;'>Đã thêm 1 trang!</span>";
                 finishBtn.style.display = 'flex';
 
             } catch (error) {
-                // Nếu có lỗi, in ra màn hình bằng chữ màu đỏ
                 statusDiv.innerHTML = `<span style='color: #ff4444; font-weight: bold;'>LỖI: ${error.message}</span>`;
-                console.error("Snap Error:", error);
             }
         });
 
