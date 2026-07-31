@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>A4 Scanner Pro (High Quality)</title>
-    <!-- Tải thư viện jsPDF -->
+    <title>A4 Scanner Pro (Fast & High Quality)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         :root {
@@ -84,7 +83,6 @@
         .action-row { display: flex; gap: 15px; width: 100%; max-width: 400px; justify-content: center; }
         .action-btn { flex: 1; padding: 15px; font-size: 15px; font-weight: bold; border: none; border-radius: 50px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 6px rgba(0,0,0,0.3); transition: 0.2s; }
         
-        /* Đã đổi vị trí: Lưu Drive (Trái), Chụp (Phải) */
         #finishBtn { background-color: #007bff; color: white; opacity: 0.4; pointer-events: none; } 
         #snapBtn { background-color: #28a745; color: white; }
         
@@ -130,7 +128,7 @@
 
         <div class="action-row">
             <button id="finishBtn" class="action-btn">🚀 Lưu Drive</button>
-            <button id="snapBtn" class="action-btn">📸 Chụp Trang 1</button>
+            <button id="snapBtn" class="action-btn">📸 Chụp</button>
         </div>
     </div>
 
@@ -159,14 +157,12 @@
         let pageCount = 0;
         let isBwOn = false;
 
-        // Hàm tạo tên file tự động
         function generateDefaultName() {
             const now = new Date();
             return `Scan_A4_${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2,'0')}${now.getDate().toString().padStart(2,'0')}_${now.getHours().toString().padStart(2,'0')}${now.getMinutes().toString().padStart(2,'0')}`;
         }
         fileNameInput.value = generateDefaultName();
 
-        // Cập nhật giao diện nút
         function updateUI() {
             if (pageCount === 0) {
                 finishBtn.style.opacity = '0.4';
@@ -184,7 +180,6 @@
         async function startCamera() {
             statusDiv.innerText = "Đang mở camera độ phân giải cao...";
             try {
-                // Yêu cầu camera 4K để tăng tối đa độ sắc nét, nếu không có sẽ tự lùi về độ phân giải thấp hơn
                 const constraints = { 
                     video: { facingMode: { exact: "environment" }, width: { ideal: 3840 }, height: { ideal: 2160 } },
                     audio: false
@@ -192,7 +187,7 @@
                 const stream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = stream;
                 statusDiv.innerText = "Sẵn sàng quét";
-                video.play().catch(e => { statusDiv.innerText = "Chạm vào màn hình để bật camera"; });
+                video.play().catch(e => { statusDiv.innerText = "Chạm màn hình để bật camera"; });
             } catch (err) {
                 try {
                     const fallbackStream = await navigator.mediaDevices.getUserMedia({video: { facingMode: "environment" }});
@@ -205,7 +200,6 @@
         }
         startCamera();
 
-        // Cập nhật CSS filter cho Preview trên màn hình
         function updateFilters() { 
             video.style.filter = `brightness(${brightnessInput.value}%) contrast(${contrastInput.value}%) ${isBwOn ? 'grayscale(100%)' : ''}`;
         }
@@ -225,17 +219,18 @@
                 if (video.videoWidth === 0 || video.videoHeight === 0) throw new Error("Khung hình chưa load xong.");
 
                 statusDiv.innerText = "Đang xử lý ảnh...";
-                video.style.opacity = '0.5';
-                setTimeout(() => video.style.opacity = '1', 100);
+                
+                // Hiệu ứng nháy màn hình khi chụp
+                video.style.opacity = '0.3';
+                setTimeout(() => video.style.opacity = '1', 150);
 
                 if (pageCount === 0) {
-                    if (!window.jspdf || !window.jspdf.jsPDF) throw new Error("Lỗi tải PDF library.");
                     doc = new window.jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
                 } else {
                     doc.addPage();
                 }
 
-                // Tính toán tọa độ cắt
+                // Lấy kích thước video và tính toán vị trí cắt
                 const vw = video.videoWidth;
                 const vh = video.videoHeight;
                 const cw = video.clientWidth;
@@ -251,15 +246,29 @@
                 const sw = rect.width / scale;
                 const sh = rect.height / scale;
 
-                canvas.width = sw;
-                canvas.height = sh;
-                const ctx = canvas.getContext('2d');
-                
-                // Vẽ ảnh gốc lên Canvas
-                ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
+                // --- TỐI ƯU HÓA TỐC ĐỘ: Thu nhỏ ảnh trước khi xử lý ---
+                // Giới hạn chiều ngang ở 1240px (Chuẩn A4 150DPI - vừa đủ nét, file cực nhẹ)
+                const MAX_WIDTH = 1240; 
+                let targetW = sw;
+                let targetH = sh;
 
-                // --- XỬ LÝ PIXEL CẤP THẤP: ÉP BUỘC TRẮNG ĐEN & ĐỘ SÁNG TRÊN MỌI TRÌNH DUYỆT ---
-                const imgDataObj = ctx.getImageData(0, 0, sw, sh);
+                if (sw > MAX_WIDTH) {
+                    const ratio = MAX_WIDTH / sw;
+                    targetW = sw * ratio;
+                    targetH = sh * ratio;
+                }
+
+                canvas.width = targetW;
+                canvas.height = targetH;
+                
+                // Thuộc tính willReadFrequently giúp tăng tốc xử lý điểm ảnh
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                
+                // Vẽ ảnh cắt được và TỰ ĐỘNG THU NHỎ xuống kích thước target
+                ctx.drawImage(video, sx, sy, sw, sh, 0, 0, targetW, targetH);
+
+                // --- XỬ LÝ PIXEL (Bây giờ chạy rất nhanh vì ảnh đã được thu nhỏ) ---
+                const imgDataObj = ctx.getImageData(0, 0, targetW, targetH);
                 const data = imgDataObj.data;
                 const b = parseInt(brightnessInput.value) / 100; 
                 const c = parseInt(contrastInput.value) / 100; 
@@ -268,15 +277,12 @@
                 for (let i = 0; i < data.length; i += 4) {
                     let r = data[i], g = data[i+1], bl = data[i+2];
                     
-                    // Áp dụng độ sáng
-                    r *= b; g *= b; bl *= b;
+                    r *= b; g *= b; bl *= b; // Sáng
                     
-                    // Áp dụng tương phản
-                    r = r * c + intercept;
+                    r = r * c + intercept; // Tương phản
                     g = g * c + intercept;
                     bl = bl * c + intercept;
                     
-                    // Áp dụng Trắng/Đen (Grayscale)
                     if (isBwOn) {
                         const gray = r * 0.299 + g * 0.587 + bl * 0.114;
                         r = g = bl = gray;
@@ -284,18 +290,17 @@
                     
                     data[i] = r; data[i+1] = g; data[i+2] = bl;
                 }
-                // Ghi đè pixel đã xử lý lại lên canvas
                 ctx.putImageData(imgDataObj, 0, 0);
 
-                // Trích xuất ảnh chất lượng khá (0.92) để nét hơn
-                const imgData = canvas.toDataURL('image/jpeg', 0.92);
-                if (!imgData || imgData === 'data:,') throw new Error("Lỗi trích xuất ảnh.");
+                // Nén ảnh JPEG ở mức 0.8 (Giảm dung lượng mạnh, chất lượng vẫn tốt cho tài liệu)
+                const imgData = canvas.toDataURL('image/jpeg', 0.8);
                 
+                // Nhúng ngay vào file PDF
                 doc.addImage(imgData, 'JPEG', 0, 0, 210, 297);
 
                 pageCount++;
                 updateUI();
-                statusDiv.innerHTML = "<span style='color: #00ff00;'>Đã chụp & tối ưu sắc nét!</span>";
+                statusDiv.innerHTML = "<span style='color: #00ff00;'>Đã chụp nhanh!</span>";
 
             } catch (error) {
                 statusDiv.innerHTML = `<span style='color: #ff4444; font-weight: bold;'>LỖI: ${error.message}</span>`;
@@ -306,13 +311,13 @@
             if (pageCount === 0 || !doc) return;
 
             snapBtn.style.pointerEvents = 'none'; finishBtn.style.pointerEvents = 'none';
-            statusDiv.innerHTML = "⏳ Đang tạo PDF & tải lên Drive...<br>Vui lòng đợi...";
+            statusDiv.innerHTML = "🚀 Đang đóng gói & tải lên Drive...<br>Sẽ hoàn thành trong vài giây...";
 
-            // Xử lý tên file tùy chỉnh
             let finalFileName = fileNameInput.value.trim();
             if (!finalFileName) finalFileName = generateDefaultName();
             if (!finalFileName.toLowerCase().endsWith('.pdf')) finalFileName += '.pdf';
 
+            // Sinh mã Base64 cho file PDF (Vì ảnh đã thu nhỏ nên bước này chạy cực nhanh)
             const pdfBase64 = doc.output('datauristring');
 
             try {
@@ -327,7 +332,7 @@
                 if (result.status === 'success') {
                     statusDiv.innerHTML = `✅ Thành công! <a href="${result.fileUrl}" target="_blank" style="color:#00ff00; font-weight:bold;">[MỞ FILE]</a>`;
                     pageCount = 0; doc = null;
-                    fileNameInput.value = generateDefaultName(); // Reset tên file mới
+                    fileNameInput.value = generateDefaultName(); 
                     updateUI();
                 } else {
                     statusDiv.innerHTML = "❌ Lỗi server: " + result.message;
