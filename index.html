@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>A4 Scanner Pro (Fast & High Quality)</title>
+    <title>A4 Scanner Pro (Fast & Fixed Name)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         :root {
@@ -76,7 +76,7 @@
         #fileNameInput {
             flex: 1; padding: 10px 15px; border-radius: 8px; border: 1px solid #555;
             background: rgba(0,0,0,0.6); color: white; font-size: 14px; outline: none;
-            text-align: center; font-family: monospace;
+            text-align: center; font-family: monospace; font-weight: bold;
         }
         #fileNameInput:focus { border-color: #007bff; background: rgba(0,0,0,0.8); }
 
@@ -136,7 +136,10 @@
 
     <script>
         // THAY URL CỦA GOOGLE APPS SCRIPT VÀO ĐÂY
-        const GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyu5vqWfpD9usdQbDO62wchJyaAQ7fDj3K2CZ4wqp0vj-uGdT8-Eu5_zVkeNRB9CXq6/exec'; 
+        const GAS_WEB_APP_URL = 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL'; 
+        
+        // Tên file mặc định
+        const DEFAULT_FILE_NAME = "PB1301";
 
         const video = document.getElementById('camera');
         const canvas = document.getElementById('canvas');
@@ -157,11 +160,8 @@
         let pageCount = 0;
         let isBwOn = false;
 
-        function generateDefaultName() {
-            const now = new Date();
-            return `Scan_A4_${now.getFullYear()}${(now.getMonth()+1).toString().padStart(2,'0')}${now.getDate().toString().padStart(2,'0')}_${now.getHours().toString().padStart(2,'0')}${now.getMinutes().toString().padStart(2,'0')}`;
-        }
-        fileNameInput.value = generateDefaultName();
+        // Gán tên mặc định khi vừa mở app
+        fileNameInput.value = DEFAULT_FILE_NAME;
 
         function updateUI() {
             if (pageCount === 0) {
@@ -178,7 +178,7 @@
         }
 
         async function startCamera() {
-            statusDiv.innerText = "Đang mở camera độ phân giải cao...";
+            statusDiv.innerText = "Đang mở camera...";
             try {
                 const constraints = { 
                     video: { facingMode: { exact: "environment" }, width: { ideal: 3840 }, height: { ideal: 2160 } },
@@ -220,7 +220,6 @@
 
                 statusDiv.innerText = "Đang xử lý ảnh...";
                 
-                // Hiệu ứng nháy màn hình khi chụp
                 video.style.opacity = '0.3';
                 setTimeout(() => video.style.opacity = '1', 150);
 
@@ -230,7 +229,6 @@
                     doc.addPage();
                 }
 
-                // Lấy kích thước video và tính toán vị trí cắt
                 const vw = video.videoWidth;
                 const vh = video.videoHeight;
                 const cw = video.clientWidth;
@@ -246,8 +244,6 @@
                 const sw = rect.width / scale;
                 const sh = rect.height / scale;
 
-                // --- TỐI ƯU HÓA TỐC ĐỘ: Thu nhỏ ảnh trước khi xử lý ---
-                // Giới hạn chiều ngang ở 1240px (Chuẩn A4 150DPI - vừa đủ nét, file cực nhẹ)
                 const MAX_WIDTH = 1240; 
                 let targetW = sw;
                 let targetH = sh;
@@ -261,13 +257,9 @@
                 canvas.width = targetW;
                 canvas.height = targetH;
                 
-                // Thuộc tính willReadFrequently giúp tăng tốc xử lý điểm ảnh
                 const ctx = canvas.getContext('2d', { willReadFrequently: true });
-                
-                // Vẽ ảnh cắt được và TỰ ĐỘNG THU NHỎ xuống kích thước target
                 ctx.drawImage(video, sx, sy, sw, sh, 0, 0, targetW, targetH);
 
-                // --- XỬ LÝ PIXEL (Bây giờ chạy rất nhanh vì ảnh đã được thu nhỏ) ---
                 const imgDataObj = ctx.getImageData(0, 0, targetW, targetH);
                 const data = imgDataObj.data;
                 const b = parseInt(brightnessInput.value) / 100; 
@@ -277,9 +269,9 @@
                 for (let i = 0; i < data.length; i += 4) {
                     let r = data[i], g = data[i+1], bl = data[i+2];
                     
-                    r *= b; g *= b; bl *= b; // Sáng
+                    r *= b; g *= b; bl *= b; 
                     
-                    r = r * c + intercept; // Tương phản
+                    r = r * c + intercept; 
                     g = g * c + intercept;
                     bl = bl * c + intercept;
                     
@@ -292,10 +284,8 @@
                 }
                 ctx.putImageData(imgDataObj, 0, 0);
 
-                // Nén ảnh JPEG ở mức 0.8 (Giảm dung lượng mạnh, chất lượng vẫn tốt cho tài liệu)
                 const imgData = canvas.toDataURL('image/jpeg', 0.8);
                 
-                // Nhúng ngay vào file PDF
                 doc.addImage(imgData, 'JPEG', 0, 0, 210, 297);
 
                 pageCount++;
@@ -313,11 +303,11 @@
             snapBtn.style.pointerEvents = 'none'; finishBtn.style.pointerEvents = 'none';
             statusDiv.innerHTML = "🚀 Đang đóng gói & tải lên Drive...<br>Sẽ hoàn thành trong vài giây...";
 
+            // Lấy tên từ ô nhập, nếu trống thì quay về PB1301
             let finalFileName = fileNameInput.value.trim();
-            if (!finalFileName) finalFileName = generateDefaultName();
+            if (!finalFileName) finalFileName = DEFAULT_FILE_NAME;
             if (!finalFileName.toLowerCase().endsWith('.pdf')) finalFileName += '.pdf';
 
-            // Sinh mã Base64 cho file PDF (Vì ảnh đã thu nhỏ nên bước này chạy cực nhanh)
             const pdfBase64 = doc.output('datauristring');
 
             try {
@@ -332,7 +322,9 @@
                 if (result.status === 'success') {
                     statusDiv.innerHTML = `✅ Thành công! <a href="${result.fileUrl}" target="_blank" style="color:#00ff00; font-weight:bold;">[MỞ FILE]</a>`;
                     pageCount = 0; doc = null;
-                    fileNameInput.value = generateDefaultName(); 
+                    
+                    // Khôi phục lại tên mặc định sau khi lưu xong
+                    fileNameInput.value = DEFAULT_FILE_NAME; 
                     updateUI();
                 } else {
                     statusDiv.innerHTML = "❌ Lỗi server: " + result.message;
