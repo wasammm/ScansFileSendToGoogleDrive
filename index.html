@@ -226,6 +226,15 @@
   <div class="card">
     <h2><span class="step">1</span>Chụp các trang hồ sơ</h2>
 
+    <label class="field" style="margin-top:0;">Độ phân giải camera</label>
+    <select id="resolutionSelect">
+      <option value="fullhd" selected>Full HD (1920×1080)</option>
+      <option value="2k">2K (2560×1440)</option>
+      <option value="4k">4K (3840×2160)</option>
+    </select>
+    <div class="hint">Chọn trước khi mở camera. Độ phân giải càng cao, chữ càng nét nhưng ảnh càng nặng — cần đóng và mở lại camera nếu muốn đổi.</div>
+    <div style="height:10px"></div>
+
     <button class="btn btn-primary" id="openLiveBtn">Mở camera trong trang (có khung A4 &amp; đèn flash)</button>
     <div class="hint" id="liveUnsupportedHint" style="display:none;">Trình duyệt này không hỗ trợ camera trực tiếp trong trang — dùng camera hệ thống bên dưới thay thế.</div>
 
@@ -287,11 +296,11 @@
 
     <label class="field">Chất lượng nén PDF</label>
     <select id="qualitySelect">
-      <option value="thap">Thấp (~1.8K, file nhỏ nhất)</option>
-      <option value="vua" selected>Vừa phải (~2.6K, khuyên dùng)</option>
-      <option value="cao">Cao (~3.6K–4K, nét nhất)</option>
+      <option value="fullhd" selected>Full HD (nhẹ, đủ dùng)</option>
+      <option value="2k">2K (khuyên dùng)</option>
+      <option value="4k">4K (nét nhất, nặng nhất — khớp ảnh chụp 4K)</option>
     </select>
-    <div class="hint">Ảnh sẽ được thu nhỏ &amp; nén JPEG khi tạo PDF. Mức "Vừa phải" và "Cao" đã được nâng để chữ vẫn đọc rõ.</div>
+    <div class="hint">Nên chọn trùng với mức "Độ phân giải camera" ở trên để ảnh không bị nén xuống thấp hơn mức đã chụp.</div>
 
     <div class="checkrow">
       <input type="checkbox" id="grayscaleCheck">
@@ -320,9 +329,9 @@
 (function(){
   var DEFAULT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyZEAmMMK_Wt29AkSNH_VMtPNv-T1j1j6DRODR182WmdwSOTQ4GRbOc_VsOOpeAVnOm/exec";
   var QUALITY_PRESETS = {
-    thap: { maxDim: 1800, quality: 0.75 },
-    vua:  { maxDim: 2600, quality: 0.88 },
-    cao:  { maxDim: 3600, quality: 0.95 }
+    fullhd: { maxDim: 1920, quality: 0.85 },
+    '2k':   { maxDim: 2560, quality: 0.9 },
+    '4k':   { maxDim: 3840, quality: 0.95 }
   };
 
   var pages = [];
@@ -336,6 +345,7 @@
   function $(id){ return document.getElementById(id); }
   var webAppUrlInput = $('webAppUrlInput');
   var openLiveBtn = $('openLiveBtn');
+  var resolutionSelect = $('resolutionSelect');
   var liveUnsupportedHint = $('liveUnsupportedHint');
   var liveWrap = $('liveWrap');
   var video = $('video');
@@ -433,14 +443,34 @@
   });
   updateFilterPreview();
 
+  var RESOLUTION_PRESETS = {
+    fullhd: { width: { ideal: 1920 }, height: { ideal: 1080 } },
+    '2k':   { width: { ideal: 2560 }, height: { ideal: 1440 } },
+    '4k':   { width: { ideal: 3840 }, height: { ideal: 2160 } }
+  };
+  var RES_ORDER = ['4k', '2k', 'fullhd'];
+
+  function buildResolutionTiers(selected){
+    var idx = RES_ORDER.indexOf(selected);
+    if(idx === -1) idx = RES_ORDER.length - 1;
+    var tiers = [];
+    for(var i = idx; i < RES_ORDER.length; i++){
+      tiers.push(RESOLUTION_PRESETS[RES_ORDER[i]]);
+    }
+    tiers.push({}); // cuối cùng để trình duyệt tự chọn nếu không mức nào khớp
+    return tiers;
+  }
+
   openLiveBtn.addEventListener('click', function(){
     openLiveBtn.disabled = true;
     videoReady = false;
-    requestCameraStream([
-      { width: { ideal: 3840 }, height: { ideal: 2160 } }, // thử 4K trước
-      { width: { ideal: 1920 }, height: { ideal: 1080 } }, // rồi tới Full HD
-      {}                                                    // cuối cùng để trình duyệt tự chọn
-    ], 0);
+    requestCameraStream(buildResolutionTiers(resolutionSelect.value), 0);
+  });
+
+  resolutionSelect.addEventListener('change', function(){
+    if(qualitySelect.querySelector('option[value="' + resolutionSelect.value + '"]')){
+      qualitySelect.value = resolutionSelect.value;
+    }
   });
 
   function requestCameraStream(tiers, idx){
@@ -459,6 +489,7 @@
       video.play();
       liveWrap.style.display = 'block';
       openLiveBtn.style.display = 'none';
+      resolutionSelect.disabled = true;
 
       var caps = null;
       try{ caps = currentTrack.getCapabilities ? currentTrack.getCapabilities() : null; }catch(e){ caps = null; }
@@ -531,6 +562,7 @@
     liveWrap.style.display = 'none';
     openLiveBtn.style.display = 'block';
     openLiveBtn.disabled = false;
+    resolutionSelect.disabled = false;
   }
 
   function clampByte(v){ return v < 0 ? 0 : (v > 255 ? 255 : v); }
@@ -688,7 +720,7 @@
   // ---------- Build PDF ----------
   function buildPdf(){
     var jsPDFCtor = window.jspdf.jsPDF;
-    var preset = QUALITY_PRESETS[qualitySelect.value] || QUALITY_PRESETS.vua;
+    var preset = QUALITY_PRESETS[qualitySelect.value] || QUALITY_PRESETS.fullhd;
     var grayscale = grayscaleCheck.checked;
     var pdf = null;
 
