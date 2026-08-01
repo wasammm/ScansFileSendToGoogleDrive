@@ -83,6 +83,7 @@
   .btn-primary:hover:not(:disabled){background:var(--accent-dark);}
   .btn-outline{background:transparent; color:var(--accent-dark); border:1.5px solid var(--accent);}
   .btn-ghost{background:#efece1; color:var(--ink);}
+  a.btn{text-decoration:none;}
   .row{display:flex; gap:10px;}
   .row .btn{flex:1;}
 
@@ -131,39 +132,49 @@
   /* Live camera */
   #liveWrap{ display:none; margin-bottom:14px; }
   .video-frame{
-    position:relative; width:100%; border-radius:14px; overflow:hidden;
-    background:#0b0e0c; aspect-ratio:3/4;
+    position:relative; width:100%; height:58vh; max-height:520px; min-height:300px;
+    border-radius:14px; overflow:hidden; background:#0b0e0c;
   }
-  .video-frame video{ width:100%; height:100%; object-fit:cover; display:block; }
+  .video-frame video{ width:100%; height:100%; object-fit:cover; display:block; background:#000; }
   .a4-overlay{
-    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    position:absolute; top:0; left:0; right:0; bottom:0;
+    display:flex; align-items:center; justify-content:center;
     pointer-events:none; flex-direction:column; gap:6px;
   }
   .a4-guide{
-    width:74%; aspect-ratio:210/297; border:2px dashed rgba(255,255,255,.85);
+    border:2px dashed rgba(255,255,255,.9);
     border-radius:8px; box-shadow:0 0 0 999px rgba(0,0,0,.28);
   }
   .a4-caption{
-    font-size:11px; color:#fff; background:rgba(0,0,0,.45); padding:3px 10px;
+    font-size:11px; color:#fff; background:rgba(0,0,0,.5); padding:3px 10px;
     border-radius:999px; letter-spacing:.03em;
   }
   .cam-controls{
-    display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:12px;
+    display:flex; align-items:flex-start; justify-content:space-between; gap:10px; margin-top:14px;
   }
+  .cam-btn-col{ display:flex; flex-direction:column; align-items:center; gap:5px; flex:1; }
+  .cam-btn-col .cap{ font-size:10.5px; color:var(--muted); font-weight:600; }
   .cam-side-btn{
-    width:44px; height:44px; border-radius:50%; border:1.5px solid var(--line);
-    background:#fff; display:flex; align-items:center; justify-content:center;
-    font-size:18px; cursor:pointer; flex-shrink:0;
+    width:46px; height:46px; min-width:46px; min-height:46px; border-radius:50%;
+    border:1.5px solid var(--line); background:#fff; display:flex; align-items:center;
+    justify-content:center; font-size:19px; line-height:1; cursor:pointer; flex-shrink:0;
+    padding:0;
   }
   .cam-side-btn.active{ background:#fff6da; border-color:#e0b93d; }
   .shutter-btn{
-    width:66px; height:66px; border-radius:50%; background:var(--accent);
-    border:4px solid #dfe9df; cursor:pointer; flex-shrink:0;
+    width:70px; height:70px; min-width:70px; min-height:70px; border-radius:50%;
+    background:var(--accent); border:4px solid #dfe9df; cursor:pointer; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-size:22px; padding:0;
   }
   .shutter-btn:active{ transform:scale(.94); }
-  .cam-close{
-    font-size:12px; color:var(--muted); text-align:center; margin-top:8px; cursor:pointer;
-    text-decoration:underline;
+
+  .adjust-row{ margin-top:14px; display:flex; flex-direction:column; gap:10px; }
+  .adjust-item{ display:flex; flex-direction:column; gap:3px; }
+  .adjust-item .lbl-row{ display:flex; justify-content:space-between; font-size:12px; color:var(--muted); font-weight:600; }
+  input[type=range]{ width:100%; accent-color:var(--accent); height:20px; }
+  .reset-adjust{
+    align-self:flex-end; font-size:11.5px; color:var(--accent-dark); background:none;
+    border:none; text-decoration:underline; cursor:pointer; padding:0;
   }
 
   .log{
@@ -219,18 +230,40 @@
     <div class="hint" id="liveUnsupportedHint" style="display:none;">Trình duyệt này không hỗ trợ camera trực tiếp trong trang — dùng camera hệ thống bên dưới thay thế.</div>
 
     <div id="liveWrap">
-      <div class="video-frame">
+      <div class="video-frame" id="videoFrame">
         <video id="video" autoplay muted playsinline webkit-playsinline></video>
         <div class="a4-overlay">
           <div class="a4-caption">Canh giấy A4 vào khung</div>
-          <div class="a4-guide"></div>
+          <div class="a4-guide" id="a4Guide"></div>
         </div>
       </div>
       <div class="cam-controls">
-        <button class="cam-side-btn" id="flashBtn" title="Bật/tắt đèn flash" style="display:none;">💡</button>
-        <button class="shutter-btn" id="shutterBtn" title="Chụp"></button>
-        <button class="cam-side-btn" id="closeCamBtn" title="Đóng camera">✕</button>
+        <div class="cam-btn-col">
+          <button class="cam-side-btn" id="flashBtn" title="Bật/tắt đèn flash" style="display:none;">💡</button>
+          <span class="cap" id="flashCap" style="display:none;">Đèn flash</span>
+        </div>
+        <div class="cam-btn-col">
+          <button class="shutter-btn" id="shutterBtn" title="Chụp">📷</button>
+          <span class="cap">Chụp</span>
+        </div>
+        <div class="cam-btn-col">
+          <button class="cam-side-btn" id="closeCamBtn" title="Đóng camera">✕</button>
+          <span class="cap">Đóng</span>
+        </div>
       </div>
+
+      <div class="adjust-row">
+        <div class="adjust-item">
+          <div class="lbl-row"><span>Độ sáng</span><span id="brightVal">0</span></div>
+          <input type="range" id="brightSlider" min="-50" max="50" step="5" value="0">
+        </div>
+        <div class="adjust-item">
+          <div class="lbl-row"><span>Độ tương phản</span><span id="contrastVal">0</span></div>
+          <input type="range" id="contrastSlider" min="-50" max="50" step="5" value="0">
+        </div>
+        <button class="reset-adjust" id="resetAdjustBtn">Đặt lại sáng/tương phản</button>
+      </div>
+
       <div class="hint" id="camHint" style="text-align:center; margin-top:6px;">Chụp xong một trang, camera vẫn mở để chụp tiếp trang kế tiếp.</div>
     </div>
 
@@ -250,7 +283,7 @@
   <div class="card">
     <h2><span class="step">2</span>Tuỳ chỉnh &amp; tải lên</h2>
     <label class="field">Tên hồ sơ / tên file</label>
-    <input type="text" id="docName" placeholder="VD: HoSo_NguyenVanA_2026">
+    <input type="text" id="docName" value="PB130100" placeholder="VD: HoSo_NguyenVanA_2026">
 
     <label class="field">Chất lượng nén PDF</label>
     <select id="qualitySelect">
@@ -258,7 +291,7 @@
       <option value="vua" selected>Vừa phải (khuyên dùng)</option>
       <option value="cao">Cao (file nặng hơn)</option>
     </select>
-    <div class="hint">Ảnh sẽ được thu nhỏ &amp; nén JPEG khi tạo PDF để giảm dung lượng.</div>
+    <div class="hint">Ảnh sẽ được thu nhỏ &amp; nén JPEG khi tạo PDF. Mức "Vừa phải" và "Cao" đã được nâng để chữ vẫn đọc rõ.</div>
 
     <div class="checkrow">
       <input type="checkbox" id="grayscaleCheck">
@@ -271,6 +304,9 @@
       <button class="btn btn-primary" id="uploadBtn" disabled>Tải lên Drive (PDF)</button>
     </div>
     <div class="log" id="logBox" style="display:none;"></div>
+    <div class="row" id="successRow" style="display:none; margin-top:10px;">
+      <a class="btn btn-outline" id="viewFileBtn" href="#" target="_blank" rel="noopener">Xem file trên Drive</a>
+    </div>
   </div>
 
 </main>
@@ -282,17 +318,19 @@
 
 <script>
 (function(){
-  var DEFAULT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbw_wKATkffQcVC3KffuWktdH_m_ae8GL_Nwypg9qpoHUZFXGrTAorVzAwMt9Oc7mZKg/exec";
+  var DEFAULT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyu5vqWfpD9usdQbDO62wchJyaAQ7fDj3K2CZ4wqp0vj-uGdT8-Eu5_zVkeNRB9CXq6/exec";
   var QUALITY_PRESETS = {
-    thap: { maxDim: 1100, quality: 0.45 },
-    vua:  { maxDim: 1600, quality: 0.65 },
-    cao:  { maxDim: 2000, quality: 0.82 }
+    thap: { maxDim: 1500, quality: 0.65 },
+    vua:  { maxDim: 2100, quality: 0.82 },
+    cao:  { maxDim: 2600, quality: 0.93 }
   };
 
   var pages = [];
   var stream = null;
   var currentTrack = null;
   var torchOn = false;
+  var videoReady = false;
+  var readyTimeoutId = null;
 
   function $(id){ return document.getElementById(id); }
   var webAppUrlInput = $('webAppUrlInput');
@@ -300,9 +338,17 @@
   var liveUnsupportedHint = $('liveUnsupportedHint');
   var liveWrap = $('liveWrap');
   var video = $('video');
+  var videoFrame = $('videoFrame');
+  var a4Guide = $('a4Guide');
   var flashBtn = $('flashBtn');
+  var flashCap = $('flashCap');
   var shutterBtn = $('shutterBtn');
   var closeCamBtn = $('closeCamBtn');
+  var brightSlider = $('brightSlider');
+  var contrastSlider = $('contrastSlider');
+  var brightVal = $('brightVal');
+  var contrastVal = $('contrastVal');
+  var resetAdjustBtn = $('resetAdjustBtn');
   var fallbackToggle = $('fallbackToggle');
   var fallbackCameraBtn = $('fallbackCameraBtn');
   var cameraInput = $('cameraInput');
@@ -314,6 +360,8 @@
   var qualitySelect = $('qualitySelect');
   var grayscaleCheck = $('grayscaleCheck');
   var logBox = $('logBox');
+  var successRow = $('successRow');
+  var viewFileBtn = $('viewFileBtn');
   var toastEl = $('toast');
 
   function toast(msg){
@@ -352,8 +400,41 @@
     fallbackCameraBtn.style.display = 'flex';
   }
 
+  function positionGuide(){
+    if(!videoFrame || !a4Guide) return;
+    var fw = videoFrame.clientWidth, fh = videoFrame.clientHeight;
+    if(!fw || !fh) return;
+    var maxW = fw * 0.78;
+    var maxH = fh * 0.82;
+    var w = maxW, h = w * (297/210);
+    if(h > maxH){ h = maxH; w = h * (210/297); }
+    a4Guide.style.width = Math.round(w) + 'px';
+    a4Guide.style.height = Math.round(h) + 'px';
+  }
+  window.addEventListener('resize', positionGuide);
+  window.addEventListener('orientationchange', function(){ setTimeout(positionGuide, 250); });
+
+  function updateFilterPreview(){
+    var b = parseInt(brightSlider.value, 10);
+    var c = parseInt(contrastSlider.value, 10);
+    brightVal.textContent = b;
+    contrastVal.textContent = c;
+    var brightPct = 1 + b/100;
+    var contrastPct = 1 + c/100;
+    video.style.filter = 'brightness(' + brightPct + ') contrast(' + contrastPct + ')';
+  }
+  brightSlider.addEventListener('input', updateFilterPreview);
+  contrastSlider.addEventListener('input', updateFilterPreview);
+  resetAdjustBtn.addEventListener('click', function(){
+    brightSlider.value = 0;
+    contrastSlider.value = 0;
+    updateFilterPreview();
+  });
+  updateFilterPreview();
+
   openLiveBtn.addEventListener('click', function(){
     openLiveBtn.disabled = true;
+    videoReady = false;
     navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: 'environment' } },
       audio: false
@@ -369,16 +450,39 @@
       try{ caps = currentTrack.getCapabilities ? currentTrack.getCapabilities() : null; }catch(e){ caps = null; }
       if(caps && caps.torch){
         flashBtn.style.display = 'flex';
+        flashCap.style.display = 'block';
       } else {
         flashBtn.style.display = 'none';
+        flashCap.style.display = 'none';
       }
       torchOn = false;
       flashBtn.className = 'cam-side-btn';
+
+      setTimeout(function(){
+        liveWrap.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
+      setTimeout(positionGuide, 200);
+
+      // Nếu sau vài giây video vẫn chưa có khung hình thật sự, coi như camera trong trang không dùng được trên máy này
+      if(readyTimeoutId) clearTimeout(readyTimeoutId);
+      readyTimeoutId = setTimeout(function(){
+        if(!videoReady){
+          toast('Camera trong trang không hiển thị được trên máy này — hãy dùng camera hệ thống bên dưới');
+          stopLiveCamera();
+          fallbackCameraBtn.style.display = 'flex';
+        }
+      }, 4000);
     }).catch(function(err){
       toast('Không mở được camera trong trang: ' + err.message + ' — dùng camera hệ thống bên dưới');
       fallbackCameraBtn.style.display = 'flex';
       openLiveBtn.disabled = false;
     });
+  });
+
+  video.addEventListener('loadedmetadata', function(){
+    videoReady = true;
+    if(readyTimeoutId){ clearTimeout(readyTimeoutId); readyTimeoutId = null; }
+    positionGuide();
   });
 
   flashBtn.addEventListener('click', function(){
@@ -401,9 +505,28 @@
     stream = null;
     currentTrack = null;
     torchOn = false;
+    videoReady = false;
+    if(readyTimeoutId){ clearTimeout(readyTimeoutId); readyTimeoutId = null; }
+    try{ video.srcObject = null; }catch(e){}
     liveWrap.style.display = 'none';
     openLiveBtn.style.display = 'block';
     openLiveBtn.disabled = false;
+  }
+
+  function clampByte(v){ return v < 0 ? 0 : (v > 255 ? 255 : v); }
+
+  function adjustBrightnessContrast(ctx, canvas, brightness, contrast){
+    var imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    var d = imgData.data;
+    var b = brightness * 2.55;
+    var cRaw = contrast * 2.55;
+    var factor = (259 * (cRaw + 255)) / (255 * (259 - cRaw));
+    for(var i=0; i<d.length; i+=4){
+      d[i]   = clampByte(factor * ((d[i]   + b) - 128) + 128);
+      d[i+1] = clampByte(factor * ((d[i+1] + b) - 128) + 128);
+      d[i+2] = clampByte(factor * ((d[i+2] + b) - 128) + 128);
+    }
+    ctx.putImageData(imgData, 0, 0);
   }
 
   shutterBtn.addEventListener('click', function(){
@@ -413,7 +536,12 @@
     canvas.height = video.videoHeight;
     var ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    var dataUrl = canvas.toDataURL('image/jpeg', 0.92);
+    var bVal = parseInt(brightSlider.value, 10);
+    var cVal = parseInt(contrastSlider.value, 10);
+    if(bVal !== 0 || cVal !== 0){
+      adjustBrightnessContrast(ctx, canvas, bVal, cVal);
+    }
+    var dataUrl = canvas.toDataURL('image/jpeg', 0.95);
     pages.push({ dataUrl: dataUrl });
     renderPages();
     toast('Đã thêm trang ' + pages.length);
@@ -461,6 +589,7 @@
     if(confirm('Xoá tất cả các trang đã chụp?')){
       pages = [];
       renderPages();
+      successRow.style.display = 'none';
     }
   });
 
@@ -549,17 +678,22 @@
     var name = (docName.value.replace(/^\s+|\s+$/g,'') || 'HoSo_' + Date.now()) + '.pdf';
     uploadBtn.disabled = true;
     logBox.textContent = '';
+    successRow.style.display = 'none';
     log('Đang xử lý & nén ' + pages.length + ' trang...');
     buildPdf().then(function(blob){
       log('Đã tạo PDF (' + (blob.size/1024).toFixed(0) + ' KB). Đang tải lên Drive...');
       return uploadToDrive(blob, name);
     }).then(function(result){
       log('Tải lên thành công: ' + (result.name || name));
-      if(result.url) log('Link: ' + result.url);
+      if(result.url){
+        log('Link: ' + result.url);
+        viewFileBtn.href = result.url;
+        successRow.style.display = 'flex';
+      }
       toast('Đã lưu vào Google Drive');
       pages = [];
       renderPages();
-      docName.value = '';
+      docName.value = 'PB130100';
     }).catch(function(err){
       log('Lỗi: ' + err.message);
       toast('Tải lên thất bại, xem chi tiết bên dưới');
