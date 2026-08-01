@@ -287,9 +287,9 @@
 
     <label class="field">Chất lượng nén PDF</label>
     <select id="qualitySelect">
-      <option value="thap">Thấp (file nhỏ nhất)</option>
-      <option value="vua" selected>Vừa phải (khuyên dùng)</option>
-      <option value="cao">Cao (file nặng hơn)</option>
+      <option value="thap">Thấp (~1.8K, file nhỏ nhất)</option>
+      <option value="vua" selected>Vừa phải (~2.6K, khuyên dùng)</option>
+      <option value="cao">Cao (~3.6K–4K, nét nhất)</option>
     </select>
     <div class="hint">Ảnh sẽ được thu nhỏ &amp; nén JPEG khi tạo PDF. Mức "Vừa phải" và "Cao" đã được nâng để chữ vẫn đọc rõ.</div>
 
@@ -320,14 +320,15 @@
 (function(){
   var DEFAULT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyZEAmMMK_Wt29AkSNH_VMtPNv-T1j1j6DRODR182WmdwSOTQ4GRbOc_VsOOpeAVnOm/exec";
   var QUALITY_PRESETS = {
-    thap: { maxDim: 1500, quality: 0.65 },
-    vua:  { maxDim: 2100, quality: 0.82 },
-    cao:  { maxDim: 2600, quality: 0.93 }
+    thap: { maxDim: 1800, quality: 0.75 },
+    vua:  { maxDim: 2600, quality: 0.88 },
+    cao:  { maxDim: 3600, quality: 0.95 }
   };
 
   var pages = [];
   var stream = null;
   var currentTrack = null;
+  var imageCapture = null;
   var torchOn = false;
   var videoReady = false;
   var readyTimeoutId = null;
@@ -435,12 +436,25 @@
   openLiveBtn.addEventListener('click', function(){
     openLiveBtn.disabled = true;
     videoReady = false;
-    navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: 'environment' } },
-      audio: false
-    }).then(function(s){
+    requestCameraStream([
+      { width: { ideal: 3840 }, height: { ideal: 2160 } }, // thử 4K trước
+      { width: { ideal: 1920 }, height: { ideal: 1080 } }, // rồi tới Full HD
+      {}                                                    // cuối cùng để trình duyệt tự chọn
+    ], 0);
+  });
+
+  function requestCameraStream(tiers, idx){
+    var extra = tiers[idx] || {};
+    var videoConstraints = { facingMode: { ideal: 'environment' } };
+    for(var key in extra){ if(extra.hasOwnProperty(key)) videoConstraints[key] = extra[key]; }
+    var constraints = { video: videoConstraints, audio: false };
+    navigator.mediaDevices.getUserMedia(constraints).then(function(s){
       stream = s;
       currentTrack = stream.getVideoTracks()[0];
+      imageCapture = null;
+      if(window.ImageCapture){
+        try{ imageCapture = new ImageCapture(currentTrack); }catch(e){ imageCapture = null; }
+      }
       video.srcObject = stream;
       video.play();
       liveWrap.style.display = 'block';
@@ -473,11 +487,16 @@
         }
       }, 4000);
     }).catch(function(err){
-      toast('Không mở được camera trong trang: ' + err.message + ' — dùng camera hệ thống bên dưới');
-      fallbackCameraBtn.style.display = 'flex';
-      openLiveBtn.disabled = false;
+      if(idx < tiers.length - 1){
+        // Thử mức độ phân giải thấp hơn nếu máy/camera không đáp ứng được mức trước
+        requestCameraStream(tiers, idx + 1);
+      } else {
+        toast('Không mở được camera trong trang: ' + err.message + ' — dùng camera hệ thống bên dưới');
+        fallbackCameraBtn.style.display = 'flex';
+        openLiveBtn.disabled = false;
+      }
     });
-  });
+  }
 
   video.addEventListener('loadedmetadata', function(){
     videoReady = true;
@@ -504,6 +523,7 @@
     }
     stream = null;
     currentTrack = null;
+    imageCapture = null;
     torchOn = false;
     videoReady = false;
     if(readyTimeoutId){ clearTimeout(readyTimeoutId); readyTimeoutId = null; }
@@ -529,22 +549,64 @@
     ctx.putImageData(imgData, 0, 0);
   }
 
-  shutterBtn.addEventListener('click', function(){
-    if(!video.videoWidth){ toast('Camera chưa sẵn sàng, thử lại sau 1 giây'); return; }
+  function blobToImageEl(blob){
+    return new Promise(function(resolve, reject){
+      var url = URL.createObjectURL(blob);
+      var img = new Image();
+      img.onload = function(){ URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = function(e){ URL.revokeObjectURL(url); reject(e); };
+      img.src = url;
+    });
+  }
+
+  function drawVideoToCanvas(){
     var canvas = document.createElement('canvas');
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    var ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    var bVal = parseInt(brightSlider.value, 10);
-    var cVal = parseInt(contrastSlider.value, 10);
-    if(bVal !== 0 || cVal !== 0){
-      adjustBrightnessContrast(ctx, canvas, bVal, cVal);
+    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas;
+  }
+
+  function getShotCanvas(){
+    if(imageCapture && imageCapture.takePhoto){
+      return imageCapture.takePhoto().then(function(blob){
+        return blobToImageEl(blob);
+      }).then(function(img){
+        var canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        canvas.getContext('2d').drawImage(img, 0, 0);
+        return canvas;
+      }).catch(function(){
+        // Một số máy/trình duyệt (đặc biệt iOS) không hỗ trợ takePhoto() đầy đủ — quay lại lấy khung hình từ video
+        return drawVideoToCanvas();
+      });
     }
-    var dataUrl = canvas.toDataURL('image/jpeg', 0.95);
-    pages.push({ dataUrl: dataUrl });
-    renderPages();
-    toast('Đã thêm trang ' + pages.length);
+    return Promise.resolve(drawVideoToCanvas());
+  }
+
+  shutterBtn.addEventListener('click', function(){
+    if(!video.videoWidth && !(imageCapture && imageCapture.takePhoto)){
+      toast('Camera chưa sẵn sàng, thử lại sau 1 giây');
+      return;
+    }
+    shutterBtn.disabled = true;
+    getShotCanvas().then(function(canvas){
+      var ctx = canvas.getContext('2d');
+      var bVal = parseInt(brightSlider.value, 10);
+      var cVal = parseInt(contrastSlider.value, 10);
+      if(bVal !== 0 || cVal !== 0){
+        adjustBrightnessContrast(ctx, canvas, bVal, cVal);
+      }
+      var dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+      pages.push({ dataUrl: dataUrl });
+      renderPages();
+      toast('Đã thêm trang ' + pages.length + ' (' + canvas.width + '×' + canvas.height + ')');
+    }).catch(function(err){
+      toast('Không chụp được: ' + err.message);
+    }).finally(function(){
+      shutterBtn.disabled = false;
+    });
   });
 
   window.addEventListener('beforeunload', stopLiveCamera);
